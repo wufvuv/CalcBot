@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Calculator</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+body{font-family:sans-serif;text-align:center;margin-top:40px}
+input{padding:10px;margin:10px;font-size:16px}
+button{padding:12px 20px;font-size:16px}
+#result{margin-top:20px;font-size:20px}
+</style>
+</head>
+
+<body>
+
+<h2>Калькулятор</h2>
+
+<input id="k" placeholder="Введите K"><br>
+<input id="p" placeholder="Введите P"><br>
+
+<button onclick="calc()">Рассчитать</button>
+
+<div id="result"></div>
+
+<script>
+function calc(){
+    let k = parseFloat(document.getElementById("k").value);
+    let p = parseFloat(document.getElementById("p").value);
+
+    if(!isNaN(k) && !isNaN(p) && p!=0){
+        let r = (k*1.05)/p;
+        document.getElementById("result").innerText =
+        "Результат: " + r.toFixed(4);
+    }else{
+        document.getElementById("result").innerText =
+        "Ошибка ввода";
+    }
+}
+</script>
+
+</body>
+</html>
