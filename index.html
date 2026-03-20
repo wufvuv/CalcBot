@@ -7,52 +7,34 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
 <style>
-
-/* КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ */
-* {
-    box-sizing: border-box;
-}
-
-html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    font-family: sans-serif;
-    background-color: #f9f9f9;
-}
+* { box-sizing: border-box; }
 
 body {
+    margin: 0;
+    font-family: sans-serif;
+    background: #f9f9f9;
     display: flex;
     justify-content: center;
-    align-items: center;
+    padding: 20px 0;
 }
 
 .container {
     width: 90%;
     max-width: 400px;
+    background: white;
     padding: 20px;
-    background: #fff;
     border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    text-align: center;
 }
 
 input {
     width: 100%;
     padding: 12px;
     margin: 10px 0;
-    font-size: 16px;
-}
-
-/* чтобы длинный текст выглядел аккуратнее */
-input::placeholder {
-    font-size: 14px;
 }
 
 .percent-buttons {
     display: flex;
-    gap: 8px;
-    margin: 10px 0;
+    gap: 6px;
 }
 
 .percent-buttons button {
@@ -61,13 +43,11 @@ input::placeholder {
     border: none;
     border-radius: 8px;
     background: #e0e0e0;
-    cursor: pointer;
 }
 
 .percent-buttons button.active {
     background: #007bff;
     color: white;
-    font-weight: bold;
 }
 
 button.calculate {
@@ -78,15 +58,40 @@ button.calculate {
     border-radius: 8px;
     background: #007bff;
     color: white;
-    font-size: 16px;
 }
 
-#result {
+/* История */
+.history {
     margin-top: 20px;
-    font-size: 18px;
-    font-weight: bold;
 }
 
+.nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.nav button {
+    padding: 6px 10px;
+}
+
+.history-item {
+    display: flex;
+    justify-content: space-between;
+    background: #f1f1f1;
+    padding: 8px;
+    border-radius: 6px;
+    margin-top: 5px;
+    font-size: 13px;
+}
+
+.delete-btn {
+    border: none;
+    background: transparent;
+    color: red;
+    cursor: pointer;
+}
 </style>
 </head>
 
@@ -109,35 +114,183 @@ button.calculate {
 
 <div id="result"></div>
 
+<div class="history">
+
+<div class="nav">
+    <button onclick="prevDate()">◀</button>
+    <span id="currentDate"></span>
+    <button onclick="nextDate()">▶</button>
+</div>
+
+<div id="historyList"></div>
+
+<div class="nav">
+    <button onclick="prevPage()">←</button>
+    <span id="pageInfo"></span>
+    <button onclick="nextPage()">→</button>
+</div>
+
+</div>
+
 </div>
 
 <script>
 
+// ===== НАСТРОЙКИ =====
+const MAX_HISTORY = 200;
+const TTL_DAYS = 14;
+const PER_PAGE = 10;
+
 let percent = 5;
+let history = JSON.parse(localStorage.getItem("history")) || [];
 
-function setPercent(value) {
-    percent = value;
+let currentDateIndex = 0;
+let currentPage = 0;
 
+function setPercent(v){
+    percent = v;
     document.querySelectorAll(".percent-buttons button")
-        .forEach(btn => btn.classList.remove("active"));
-
-    document.getElementById("p" + value).classList.add("active");
+        .forEach(b=>b.classList.remove("active"));
+    document.getElementById("p"+v).classList.add("active");
 }
-
 setPercent(5);
 
-function calc() {
-    let k = parseFloat(document.getElementById("k").value);
-    let p = parseFloat(document.getElementById("p").value);
+// ===== CLEANUP =====
+function cleanup(){
+    let now = Date.now();
+    let limit = TTL_DAYS*86400000;
+    history = history.filter(i => now - i.time < limit);
+}
 
-    if(!isNaN(k) && !isNaN(p) && p != 0) {
-        let r = (k * (1 + percent/100)) / p;
-        document.getElementById("result").innerText =
-            "Результат: " + r.toFixed(4);
-    } else {
-        document.getElementById("result").innerText = "Ошибка ввода";
+// ===== CALC =====
+function calc(){
+    let k = parseFloat(kEl.value);
+    let p = parseFloat(pEl.value);
+
+    if(!isNaN(k) && !isNaN(p) && p!=0){
+
+        cleanup();
+
+        let r = (k*(1+percent/100))/p;
+
+        history.unshift({
+            id: Date.now()+Math.random(),
+            k,p,percent,
+            result:r.toFixed(4),
+            time:Date.now()
+        });
+
+        if(history.length>MAX_HISTORY){
+            history = history.slice(0,MAX_HISTORY);
+        }
+
+        localStorage.setItem("history",JSON.stringify(history));
+
+        currentPage = 0;
+        currentDateIndex = 0;
+
+        render();
+
+        result.innerText = "Результат: "+r.toFixed(4);
     }
 }
+
+// ===== ГРУППИРОВКА =====
+function getGroups(){
+    let groups = {};
+    history.forEach(i=>{
+        let d = new Date(i.time).toLocaleDateString();
+        if(!groups[d]) groups[d]=[];
+        groups[d].push(i);
+    });
+    return Object.entries(groups);
+}
+
+// ===== RENDER =====
+function render(){
+    cleanup();
+
+    let groups = getGroups();
+
+    if(groups.length===0) return;
+
+    let [date, items] = groups[currentDateIndex];
+
+    document.getElementById("currentDate").innerText = date;
+
+    let totalPages = Math.ceil(items.length/PER_PAGE);
+
+    if(currentPage>=totalPages) currentPage=0;
+
+    let start = currentPage*PER_PAGE;
+    let pageItems = items.slice(start,start+PER_PAGE);
+
+    let list = document.getElementById("historyList");
+    list.innerHTML="";
+
+    pageItems.forEach(item=>{
+        let div = document.createElement("div");
+        div.className="history-item";
+
+        let time = new Date(item.time).toLocaleTimeString();
+
+        div.innerHTML = `
+            ${time} | K:${item.k} P:${item.p} ${item.percent}% → ${item.result}
+            <button class="delete-btn" onclick="deleteItem('${item.id}')">✕</button>
+        `;
+
+        list.appendChild(div);
+    });
+
+    document.getElementById("pageInfo").innerText =
+        `${currentPage+1}/${totalPages}`;
+
+    localStorage.setItem("history",JSON.stringify(history));
+}
+
+// ===== NAV =====
+function prevDate(){
+    let groups = getGroups();
+    if(currentDateIndex>0){
+        currentDateIndex--;
+        currentPage=0;
+        render();
+    }
+}
+
+function nextDate(){
+    let groups = getGroups();
+    if(currentDateIndex<groups.length-1){
+        currentDateIndex++;
+        currentPage=0;
+        render();
+    }
+}
+
+function prevPage(){
+    if(currentPage>0){
+        currentPage--;
+        render();
+    }
+}
+
+function nextPage(){
+    currentPage++;
+    render();
+}
+
+// ===== DELETE =====
+function deleteItem(id){
+    history = history.filter(i=>i.id!=id);
+    render();
+}
+
+// ===== INIT =====
+const kEl = document.getElementById("k");
+const pEl = document.getElementById("p");
+const result = document.getElementById("result");
+
+render();
 
 </script>
 
